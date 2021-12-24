@@ -1,0 +1,17 @@
+# MANIFEST.in does not affect binary distributions such as wheels.
+# See https://packaging.python.org/guides/distributing-packages-using-setuptools/#id37
+
+# Include the README
+include *.md
+
+# Include the license file
+include LICENSE.txt
+
+# Include setup
+include setup.py
+include setup.cfg
+include requirements.txt
+
+# Include the data and image files
+# recursive-include data *
+# recursive-include img *

@@ -1,0 +1,5 @@
+operation,source_folder,target_folder
+backup,C:\Personal,D:\Backup\CPersonal
+backup,F:\Personal,D:\Backup\FPersonal
+backup,C:\Users\advena\AppData\Roaming,D:\Backup\Users\advena\AppData
+backup,C:\ProgramData\Anaconda3,D:\Backup\Anaconda3
