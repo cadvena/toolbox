@@ -1,5 +1,6 @@
 import os, stat, shutil
 import unittest
+from pathlib import Path as ExpectedPath
 from toolbox.pathlib import Path
 from toolbox import path
 import pathlib
@@ -8,25 +9,23 @@ import pathlib
 class TestPath(unittest.TestCase):
     def setUp(self):
         print("\nCalling TestOSWrapper.setUp()...")
-        self.path_str = 'c:/gmom/mom/stem.suffix'
-        self.root_str = 'c:/gmom'
-        p = pathlib.Path(self.root_str)
+        self.root_str = os.path.join(os.environ['temp'], 'gmom')
+        self.path_str = os.path.join(self.root_str, 'mom/stem.suffix')
         p = pathlib.Path(self.path_str)
-        if p.parent.exists():
-            raise FileExistsError
-        p.parent.mkdir (parents = True, exist_ok = True)
+        if os.path.exists(self.root_str):
+            shutil.rmtree(self.root_str)
+        p.parent.mkdir(parents = True, exist_ok = True)
 
     def tearDown(self):
         print("\nCalling TestOSWrapper.tearDown()...")
-        # p = path_str.split('/')[:2]
-        # p = pathlib.py.Path(p[0] + '/' + p[1])
-        p = pathlib.Path(self.root_str)
-        if p.exists():
-            shutil.rmtree(p)
+        if path.exists(self.root_str):
+            shutil.rmtree(self.root_str)
 
     def test_Path_init(self):
         path_str = self.path_str
+        ep = ExpectedPath(path_str)
         p = Path(path_str)
+        self.assertEqual(ep.__str__(), p.str)
         self.assertEqual(p.prev_wds[0], os.getcwd())
         self.assertEqual(p.ignore_errors, False)
         # self.assertEqual(p.find_implied, True)
@@ -56,7 +55,7 @@ class TestPath(unittest.TestCase):
         self.assertEqual (pathlib.Path(path_str).name, p.name)
         self.assertEqual (pathlib.Path(path_str).root, p.root)
         self.assertEqual (pathlib.Path(path_str).anchor, p.anchor)
-        self.assertEqual (pathlib.Path(path_str).drive, p.drive().str)
+        self.assertEqual (pathlib.Path(path_str).drive, p.get_drive())
         self.assertEqual (pathlib.Path(path_str).absolute(), p.absolute())
         self.assertEqual (True, p.is_file(make_assumptions=True))
         self.assertEqual (False, p.is_file(make_assumptions=False))
@@ -94,13 +93,13 @@ class TestPath(unittest.TestCase):
 
         temp_dir = os.path.abspath(temp_dir)
         drv = str(pathlib.Path(temp_dir).drive)
-        fr_drv = fp.drive().str
+        fr_drv = fp.get_drive()
         self.assertEqual(type(drv), str)
         self.assertEqual(type(fr_drv), str)
         self.assertTrue(isinstance(fp, Path))
-        self.assertEqual(fp.drive().str, drv)
-        self.assertEqual(fp.drive(find_implied = True).str, drv)
-        self.assertEqual(fp.drive(find_implied = False).str, drv)
+        self.assertEqual(fp.get_drive(), drv)
+        self.assertEqual(fp.get_drive(find_implied = True), drv)
+        self.assertEqual(fp.get_drive(find_implied = False), drv)
 
         os.chmod(path = temp_dir, mode = stat.S_IWRITE)
         shutil.rmtree(temp_dir)
@@ -122,9 +121,9 @@ class TestPath(unittest.TestCase):
 
         temp_dir = os.path.abspath (no_dir)
         drv = pathlib.Path(no_dir).drive
-        self.assertEqual (fp.drive().str, drv)
-        self.assertEqual (fp.drive(find_implied = True).str, drv)
-        self.assertEqual (fp.drive(find_implied = False).str, drv)
+        self.assertEqual (fp.get_drive(), drv)
+        self.assertEqual (fp.get_drive(find_implied = True), drv)
+        self.assertEqual (fp.get_drive(find_implied = False), drv)
 
 
         # create temp_file
@@ -146,9 +145,9 @@ class TestPath(unittest.TestCase):
 
         temp_dir = os.path.abspath (temp_file)
         drv = pathlib.Path(temp_file).drive
-        self.assertEqual(fp.drive().str, drv)
-        self.assertEqual(fp.drive(find_implied = True).str, drv)
-        self.assertEqual(fp.drive(find_implied = False).str, drv)
+        self.assertEqual(fp.get_drive(), drv)
+        self.assertEqual(fp.get_drive(find_implied = True), drv)
+        self.assertEqual(fp.get_drive(find_implied = False), drv)
         os.chmod(path = temp_file, mode = stat.S_IWRITE)
         os.remove (temp_file)
 
@@ -169,9 +168,9 @@ class TestPath(unittest.TestCase):
 
         temp_dir = os.path.abspath (no_file)
         drv = pathlib.Path(no_file).drive
-        self.assertEqual(fp.drive().str, drv)
-        self.assertEqual(fp.drive(find_implied = True).str, drv)
-        self.assertEqual(fp.drive(find_implied = False).str, drv)
+        self.assertEqual(fp.get_drive(), drv)
+        self.assertEqual(fp.get_drive(find_implied = True), drv)
+        self.assertEqual(fp.get_drive(find_implied = False), drv)
 
     def test_drive_parent(self):
         # self.assertEqual (Path ('C:/temp').find_implied, True)
