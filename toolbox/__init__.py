@@ -42,10 +42,10 @@ except ImportError as e:
     # warn(f'Unable to import pjm_defaults from toolbox.pjm_init. {e}')
     pjm_defaults = None
 
-try:
-    from toolbox.swiss_army import *
-except:
-    warn(f'Unable to import from toolbox.swiss_army. {e}')
+# try:
+from toolbox.swiss_army import *
+# except Exception as e:
+#     warn(f'Unable to import from toolbox.swiss_army. {e}')
 
 __version_info__ = parse_version_info(__version__)  # toolbox.swiss_army.parse_version_info
 toolbox_module_dir = Path(__file__).parent.resolve()
