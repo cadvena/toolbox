@@ -1,38 +1,43 @@
 #!/usr/bin/env python
 
-import os
 import ftplib
-from urllib.parse import urlsplit
-from dateutil import parser
-from collections import namedtuple
-from datetime import datetime as dtdt
-from toolbox.file_util.hash import hash_match
-from toolbox import path
+import os
 import tempfile
+from collections import namedtuple
+from typing import Union
+from datetime import datetime as dtdt
+from urllib.parse import urlsplit
+
+from dateutil import parser
+
+from toolbox import pathlib
+from toolbox.file_util.hash import hash_match
 # from toolbox import tb_cfg
 
+NoneType = type(None)
 
 # create a named tuple for results
-StatsTuple = namedtuple (typename = 'StatsTuple',
-                         field_names = ('scheme', 'netloc', 'path', 'dirname',
-                                        'basename', 'modified', 'size')
+StatsTuple = namedtuple(typename='StatsTuple',
+                        field_names=('scheme', 'netloc', 'path', 'dirname',
+                                     'basename', 'modified', 'size')
                         )
-FTPPathParts = namedtuple('FTPPathParts',['scheme', 'netloc', 'path',
-                                          'dirname', 'basename', 'url'])
-GetTuple = namedtuple (typename = 'GetTuple',
-                       field_names = ('scheme', 'netloc', 'path', 'dirname',
-                                      'basename', 'modified', 'size',
-                                      'target_filename')
-                       )
-CompareTuple = namedtuple (typename = 'CompareTuple',
-                           field_names = ['match', 'base_match', 'size_match',
-                                          'modified_match', 'hash_match']
-                           )
+FTPPathParts = namedtuple('FTPPathParts', ['scheme', 'netloc', 'path',
+                                           'dirname', 'basename', 'url'])
+GetTuple = namedtuple(typename='GetTuple',
+                      field_names=('scheme', 'netloc', 'path', 'dirname',
+                                   'basename', 'modified', 'size',
+                                   'target_filename')
+                      )
+CompareTuple = namedtuple(typename='CompareTuple',
+                          field_names=['match', 'base_match', 'size_match',
+                                       'modified_match', 'hash_match']
+                          )
 
-def url_join(scheme, netloc, path = '') -> str:
-    scheme = scheme.strip () or 'ftp'
+
+def url_join(scheme, netloc, path='') -> str:
+    scheme = scheme.strip() or 'ftp'
     assert (scheme.lower() in ['ftp', 'ftps'])
-    netloc = netloc.strip().strip ('/')
+    netloc = netloc.strip().strip('/')
     assert (len(netloc) > 0)
     path = path.strip().lstrip('/')
     if path: path = '/' + path
@@ -101,8 +106,9 @@ class FTP(ftplib.FTP):
     >>> FTP().listdir(path='ftp://ftp.pjm.com/oasis')
 
     """
+
     def __init__(self, host_or_url='', user='', passwd='', acct='', timeout=None,
-                 source_address:tuple=None):
+                 source_address: tuple = None):
         """
         :param host: host can receive either a host or a full ftp url.  If a full
                      ftp url is provided, host is extracted and updated and the full
@@ -117,7 +123,7 @@ class FTP(ftplib.FTP):
         self.scheme = ''
         self.path = ''
         if host_or_url:
-            self.set_url(host_or_url = host_or_url, source_address = source_address)
+            self.set_url(host_or_url=host_or_url, source_address=source_address)
         super().__init__(host=self.host, user=user, passwd=passwd, acct=acct,
                          timeout=timeout, source_address=source_address)
         # self.session(self.host, user=user, passwd=passwd, acct=acct,
@@ -125,15 +131,15 @@ class FTP(ftplib.FTP):
 
     @staticmethod
     def url_split(host_or_url, source_address: tuple = None) -> FTPPathParts:
-        return url_split(host_or_url = host_or_url, source_address = source_address)
+        return url_split(host_or_url=host_or_url, source_address=source_address)
 
     @staticmethod
-    def url_join(scheme, netloc, path = '') -> str:
-        return url_join(scheme = scheme, netloc = netloc, path = path)
+    def url_join(scheme, netloc, path='') -> str:
+        return url_join(scheme=scheme, netloc=netloc, path=path)
 
-    def dirname(self, host_or_url:str = '') -> str:
+    def dirname(self, host_or_url: str = '') -> str:
         host_or_url = host_or_url or self.path
-        return url_split(host_or_url = host_or_url).dirname
+        return url_split(host_or_url=host_or_url).dirname
 
     @property
     def url(self) -> str:
@@ -141,17 +147,17 @@ class FTP(ftplib.FTP):
 
     @url.setter
     def url(self, new_url):
-        self.set_url(host_or_url = new_url)
+        self.set_url(host_or_url=new_url)
 
-    def set_url(self, host_or_url, source_address:tuple=None):
-        x = url_split(host_or_url = host_or_url, source_address = source_address)
-        assert(x.scheme.lower () in ['ftp', 'ftps', ''])
+    def set_url(self, host_or_url, source_address: tuple = None):
+        x = url_split(host_or_url=host_or_url, source_address=source_address)
+        assert (x.scheme.lower() in ['ftp', 'ftps', ''])
         self.scheme = x.scheme or self.scheme
         self.host = x.netloc or self.host
         self.path = x.path
 
-    def session(self, host_or_url = '', user = '', passwd = '', acct = '',
-                timeout = None, source_address = None):
+    def session(self, host_or_url='', user='', passwd='', acct='',
+                timeout=None, source_address=None):
         """
         If a session is not already open, create one.  Attempts FTP.connect
         and FTP.login methods.
@@ -171,25 +177,25 @@ class FTP(ftplib.FTP):
         except ConnectionRefusedError:
             print()
             if self.source_address:
-                self.connect(source_address = self.source_address)
+                self.connect(source_address=self.source_address)
             else:
                 self.connect(self.host)
             print()
         except Exception as e:
             raise
-        if not self.lastresp == '220': # connect_response.startswith ('220'):
+        if not self.lastresp == '220':  # connect_response.startswith ('220'):
             raise ConnectionError(self.lastresp)
 
         # login
         if user or passwd or acct:
-            self.login(user = user, passwd = passwd, acct = acct)
+            self.login(user=user, passwd=passwd, acct=acct)
         else:
             self.login()
 
         return self
 
-    def stats(self, url_or_path: str, user = '', passwd = '', acct = '',
-              output_option: str = '') -> StatsTuple:
+    def stats(self, url_or_path: str, user='', passwd='', acct='',
+              output_option: str = '') -> Union[StatsTuple, int, dtdt, NoneType]:
         """
         Get the name of a file's containing directory, basename, modified time, and file size
 
@@ -209,13 +215,13 @@ class FTP(ftplib.FTP):
         parts = url_split(url_or_path)
         if parts.netloc:
             # url_or_path includes ftp host info
-            self.session (url_or_path, user = user, passwd = passwd, acct = acct)
+            self.session(url_or_path, user=user, passwd=passwd, acct=acct)
         else:
             # url_or_path does not include ftp host info
-            self.session ()
+            self.session()
 
-        parts = FTPPathParts (self.scheme, parts.netloc or self.host, parts.path or self.path,
-                              parts.dirname, parts.basename, parts.url)
+        parts = FTPPathParts(self.scheme, parts.netloc or self.host, parts.path or self.path,
+                             parts.dirname, parts.basename, parts.url)
 
         # verify path exists
         if not self.exists(parts.path):
@@ -223,16 +229,16 @@ class FTP(ftplib.FTP):
 
         # now that we are logged into the ftp server, let's double check that
         # we split dirname and basename correctly.
-        if self.is_dir (parts.path):
+        if self.is_dir(parts.path):
             _dirname, _basename = parts.path, ''
         else:
-            _dirname, _basename = os.path.split (parts.path)
+            _dirname, _basename = os.path.split(parts.path)
 
         # get modified date
         _mod_time = None
-        if output_option.lower () != 'size_only':
+        if output_option.lower() != 'size_only':
             try:
-                _mod_time = parser.parse (self.voidcmd (f"MDTM {parts.path}")[4:].strip ())
+                _mod_time = parser.parse(self.voidcmd(f"MDTM {parts.path}")[4:].strip())
             except ftplib.error_perm:
                 _mod_time = None
             except Exception:
@@ -242,74 +248,39 @@ class FTP(ftplib.FTP):
         _size = None
         if output_option.lower != 'modified_only':
             try:
-                _size = super ().size (parts.path)
+                _size = super().size(parts.path)
             except ftplib.error_perm:
                 _size = None
             except Exception:
                 raise
 
         # return the results
-        if output_option.lower () == 'size_only':
+        if output_option.lower() == 'size_only':
             return _size
-        elif output_option.lower () == 'modified_only':
+        elif output_option.lower() == 'modified_only':
             return _mod_time
         else:
-            return StatsTuple (self.scheme, self.host, parts.path,
-                               _dirname, _basename, _mod_time, _size)
+            return StatsTuple(self.scheme, self.host, parts.path,
+                              _dirname, _basename, _mod_time, _size)
 
-    def download(self, url_or_path: str, user = '', passwd = '', acct = '',
-            tgt_folder = '', overwrite: bool = True) -> GetTuple:
-
-        parts = url_split(url_or_path)
-        if parts.netloc:
-            # set_url will accept new scheme and host from url_or_path if provided;
-            # else, the existing self.scheme and .host are kept.
-            self.set_url(url_or_path)
-            # parts.path = self.path
-            parts = FTPPathParts(self.scheme, self.host, parts.path,
-                                 parts.dirname, parts.basename, parts.url)
-
-        # open and log into ftp
-        self.session(self.host, user = user, passwd = passwd, acct = acct)
-
-        # verify path exists
-        if not self.exists(parts.path):
-            raise FileNotFoundError
-        # get file stats from server before downloading
-        stats = self.stats(url_or_path = url_or_path)
-
-        # download file from ftp server to disk
-        save_as = stats.path
-        if tgt_folder:
-            save_as = os.path.join (tgt_folder, stats.basename)
-        if not overwrite and os.path.exists (save_as):
-            raise FileExistsError (f'File "{save_as}" already exists. ')
-
-        with open (save_as, "wb") as file:
-            # use FTP's RETR command to download the file
-            self.retrbinary (f"RETR {stats.path}", file.write)
-
-        return GetTuple(stats.scheme, stats.netloc, stats.path, stats.dirname,
-                        stats.basename, stats.modified, stats.size, save_as)
-
-    def modified(self, host_or_url:str = '', user='', passwd = '', acct = '') -> dtdt:
+    def modified(self, host_or_url: str = '', user='', passwd='', acct='') -> dtdt:
         host_or_url = host_or_url or self.path
-        self.session (host_or_url = host_or_url, user = user,
-                      passwd = passwd, acct = acct)
-        return self.stats(host_or_url, output_option = 'modified_only')
+        self.session(host_or_url=host_or_url, user=user,
+                     passwd=passwd, acct=acct)
+        return self.stats(host_or_url, output_option='modified_only')
 
-    def size(self, host_or_url:str = '', user='', passwd = '', acct = '') -> dtdt:
+    def size(self, host_or_url: str = '', user='', passwd='', acct='') -> int:
         host_or_url = host_or_url or self.path
-        parts = url_split(host_or_url = host_or_url)
+        parts = url_split(host_or_url=host_or_url)
         path = parts.path
-        self.session(host_or_url = host_or_url, user=user,
-                     passwd = passwd, acct = acct)
+        self.session(host_or_url=host_or_url, user=user,
+                     passwd=passwd, acct=acct)
         if parts.basename:
             return super().size(parts.path)
         else:
             return None
 
-    def exists(self, path:str) -> bool:
+    def exists(self, path: str) -> bool:
         # if scheme or host are included in path, we'll strip those out.
         self.session()
         parts = url_split(path)
@@ -327,43 +298,78 @@ class FTP(ftplib.FTP):
         except Exception:
             raise
 
-    def download(self, url_or_path: str, user = '', passwd = '', acct = '',
-                 tgt_folder = '', overwrite: bool = True) -> GetTuple:
+    # def download(self, url_or_path: str, user='', passwd='', acct='',
+    #              tgt_folder='', overwrite: bool = True) -> GetTuple:
+    #
+    #     parts = url_split(url_or_path)
+    #     if parts.netloc:
+    #         # set_url will accept new scheme and host from url_or_path if provided;
+    #         # else, the existing self.scheme and .host are kept.
+    #         self.set_url(url_or_path)
+    #         # parts.path = self.path
+    #         parts = FTPPathParts(self.scheme, self.host, parts.path,
+    #                              parts.dirname, parts.basename, parts.url)
+    #
+    #     # open and log into ftp
+    #     self.session(self.host, user=user, passwd=passwd, acct=acct)
+    #
+    #     # verify path exists
+    #     if not self.exists(parts.path):
+    #         raise FileNotFoundError
+    #     # get file stats from server before downloading
+    #     stats = self.stats(url_or_path=url_or_path)
+    #
+    #     # download file from ftp server to disk
+    #     save_as = stats.path
+    #     if tgt_folder:
+    #         save_as = os.path.join(tgt_folder, stats.basename)
+    #     if not overwrite and os.path.exists(save_as):
+    #         raise FileExistsError(f'File "{save_as}" already exists. ')
+    #
+    #     with open(save_as, "wb") as file:
+    #         # use FTP's RETR command to download the file
+    #         self.retrbinary(f"RETR {stats.path}", file.write)
+    #
+    #     return GetTuple(stats.scheme, stats.netloc, stats.path, stats.dirname,
+    #                     stats.basename, stats.modified, stats.size, save_as)
+    #
+    def download(self, url_or_path: str, user='', passwd='', acct='',
+                 tgt_folder='', overwrite: bool = True) -> GetTuple:
 
         # get file stats from server before downloading
-        result = stats (url_or_path = url_or_path, user = user, passwd = passwd, acct = acct)
+        result = self.stats(url_or_path=url_or_path, user=user, passwd=passwd, acct=acct)
         # download file from ftp server to disk
-        save_as = path.Path(result.path).name
+        save_as = pathlib.Path(result.path).name
         if tgt_folder:
-            save_as = os.path.join (tgt_folder, result.basename)
-        if not overwrite and os.path.exists (save_as):
-            raise FileExistsError (f'File "{save_as}" already exists. ')
+            save_as = os.path.join(tgt_folder, result.basename)
+        if not overwrite and os.path.exists(save_as):
+            raise FileExistsError(f'File "{save_as}" already exists. ')
 
-        with open (save_as, "wb") as file:
+        with open(save_as, "wb") as file:
             # use FTP's RETR command to download the file
-            _global_ftp.retrbinary (f"RETR {result.path}", file.write)
+            _global_ftp.retrbinary(f"RETR {result.path}", file.write)
 
-        return GetTuple (result.scheme, result.netloc, result.path, result.dirname,
-                         result.basename, result.modified, result.size, save_as)
+        return GetTuple(result.scheme, result.netloc, result.path, result.dirname,
+                        result.basename, result.modified, result.size, save_as)
 
-    def is_dir(self, path:str) -> bool:
+    def is_dir(self, path: str) -> bool:
         # self.session()
         # if scheme or host are included in path, we'll strip those out.
         path = urlsplit(path).path
-        if not self.exists(path = path):
+        if not self.exists(path=path):
             return False
         try:
-            orig_dir = self.pwd ()
-            self.cwd (path)
-            self.cwd (orig_dir)
+            orig_dir = self.pwd()
+            self.cwd(path)
+            self.cwd(orig_dir)
             return True
         except ftplib.error_perm as e:
             return False
         except Exception as e:
             raise e
 
-    def listdir(self, path:str, get_stats:bool = False,
-                user='', passwd = '', acct = '') -> list:
+    def listdir(self, path: str, get_stats: bool = False,
+                user='', passwd='', acct='') -> list:
         """
         Return a directory listing of path.
         :param path: may be a path within the url or the full url
@@ -377,23 +383,23 @@ class FTP(ftplib.FTP):
                 dirs = list of directories in ftp_path
                 non_dirs = list of non-directory items in ftp_path
         """
+        ListTuple = namedtuple('ListTuple', ['name', 'modified',
+                                             'size', 'is_dir'])
         # open and log into ftp
         try:
             self.session()
         except:
-            self.session (host_or_url = path, user = user, passwd = passwd, acct = acct)
+            self.session(host_or_url=path, user=user, passwd=passwd, acct=acct)
         if get_stats:
             raise NotImplementedError
 
-        ListTuple = namedtuple ('ListTuple', ['name', 'modified',
-                                              'size', 'is_dir'])
         file_list, dirs, non_dirs = [], [], []
         res = []
 
         parts = urlsplit(path)
 
-        self.retrlines (f'LIST {parts.path}',
-                        lambda s: file_list.append (s.split ()))
+        self.retrlines(f'LIST {parts.path}',
+                       lambda s: file_list.append(s.split()))
         # PJM ftp servers do not support mlsd, so this substandard workaround
         # is necessary.
         for info in file_list:
@@ -403,20 +409,20 @@ class FTP(ftplib.FTP):
                 # info[-2] = type or size
                 # info[-1] = name
                 mod_time = info[0] + ' ' + info[1]
-                mod_time = dtdt.strptime (mod_time, '%m-%d-%y %I:%M%p')
-                if info[-2].upper () in ['<DIR>']:
+                mod_time = dtdt.strptime(mod_time, '%m-%d-%y %I:%M%p')
+                if info[-2].upper() in ['<DIR>']:
                     # info[-2] = type
                     #           [name,     modified, size]
                     # ['name', 'modified','size', 'is_dir']
-                    res.append (ListTuple (info[-1], mod_time, None, True))
+                    res.append(ListTuple(info[-1], mod_time, None, True))
                 elif info[-2].isnumeric:
                     # info[-2] = size
                     #               [name,     modified, size    ]
-                    res.append(ListTuple (info[-1], mod_time,
-                                          int (info[-2]), False))
+                    res.append(ListTuple(info[-1], mod_time,
+                                         int(info[-2]), False))
                 else:
                     #               [name,     modified, size    ]
-                    res.append (ListTuple (info[-1], mod_time, None, None))
+                    res.append(ListTuple(info[-1], mod_time, None, None))
             else:
                 # Not tested on non-NT systems.
                 # info[0] = type
@@ -425,7 +431,7 @@ class FTP(ftplib.FTP):
                 _is_dir = False
                 if ls_type.startswith('d'):
                     _is_dir = True
-                res.append (ListTuple (name, None, None, _is_dir))
+                res.append(ListTuple(name, None, None, _is_dir))
 
         return res
 
@@ -433,9 +439,9 @@ class FTP(ftplib.FTP):
         raise NotImplementedError
         # TODO: this fails on at "self.retrlines (f'LIST {parts.path}',
         # # lambda s: file_list.append (s.split ()))" in self.listdir
-        #contents = self.listdir(top)
-        dirs = [x.name for x in contents if x.is_dir]
-        nondirs = [x.name for x in contents if not x.is_dir]
+        contents = self.listdir(top)
+        dirs = [x.name for x in contents if x.is_dir()]
+        nondirs = [x.name for x in contents if not x.is_dir()]
         yield (path or top), dirs, nondirs
         path = top
         for name in dirs:
@@ -445,32 +451,34 @@ class FTP(ftplib.FTP):
             self.cwd('..')
             path = os.path.dirname(path)
 
+
 # ##############################################################################
 # API - Functions
 # ##############################################################################
 
 _global_ftp = FTP()
 
-def exists(ftp_url:str, user = '', passwd = '', acct = ''):
+
+def exists(ftp_url: str, user='', passwd='', acct=''):
     global _global_ftp
-    _global_ftp.session(host_or_url = ftp_url, user= user, passwd= passwd,acct = acct)
-    return _global_ftp.exists(path = ftp_url)
+    _global_ftp.session(host_or_url=ftp_url, user=user, passwd=passwd, acct=acct)
+    return _global_ftp.exists(path=ftp_url)
 
 
-def new_session(ftp_url:str, user= '', passwd= '', acct = '',
-                timeout = None, source_address = None) -> FTP:
+def new_session(ftp_url: str, user='', passwd='', acct='',
+                timeout=None, source_address=None) -> FTP:
     global _global_ftp
     i = 0
     while i < 3:
         try:
             host = ftp_url or _global_ftp
-            _global_ftp = FTP(host_or_url = host,
-                              user = user, passwd = passwd,
-                              acct = acct, timeout = timeout,
-                              source_address = source_address)
+            _global_ftp = FTP(host_or_url=host,
+                              user=user, passwd=passwd,
+                              acct=acct, timeout=timeout,
+                              source_address=source_address)
             _global_ftp.connect()
-            _global_ftp.login(user = user, passwd = passwd,
-                              acct = acct)
+            _global_ftp.login(user=user, passwd=passwd,
+                              acct=acct)
             return _global_ftp
         except Exception as e:
 
@@ -479,10 +487,10 @@ def new_session(ftp_url:str, user= '', passwd= '', acct = '',
                 raise e
 
 
-def stats(url_or_path:str, user= '', passwd= '', acct = '', output_option:str = '') -> StatsTuple:
+def stats(url_or_path: str, user='', passwd='', acct='', output_option: str = '') -> StatsTuple:
     """
     Get the name of a file's containing directory, basename, modified time, and file size
-    :param path:     The url or path of the file. If only providing the path,
+    :param url_or_path:     The url or path of the file. If only providing the path,
                         then you must also provide an ftp_session.
     :param user:    ftp username.  ignored if ftp_session != None
     :param passwd:      ftp password.  ignored if ftp_session != None
@@ -495,53 +503,50 @@ def stats(url_or_path:str, user= '', passwd= '', acct = '', output_option:str = 
     """
     global _global_ftp
     # _global_ftp = new_session()
-    return _global_ftp.stats(url_or_path = url_or_path, user= user, passwd= passwd,
-                             acct = acct, output_option = output_option)
+    return _global_ftp.stats(url_or_path=url_or_path, user=user, passwd=passwd,
+                             acct=acct, output_option=output_option)
 
 
-def basename(path:str, user= '', passwd= '', acct = '', verify=False) -> str:
+def basename(path: str, user='', passwd='', acct='', verify=False) -> StatsTuple:
     if verify:
         global _global_ftp
-        return stats(path=path, user=user, passwd=passwd, acct=acct,
-                     output_option = 'basename_only')
+        return stats(url_or_path=path, user=user, passwd=passwd, acct=acct,
+                     output_option='basename_only')
     else:
         return url_split(path).basename
 
 
-def dirname(path:str, user= '', passwd= '', acct = '', verify=False) -> str:
+def dirname(path: str, user='', passwd='', acct='', verify=False) -> StatsTuple:
     if verify:
         global _global_ftp
-        return stats(path=path, user=user, passwd=passwd, acct=acct,
-                     output_option = 'dirname_only')
+        return stats(url_or_path=path, user=user, passwd=passwd, acct=acct,
+                     output_option='dirname_only')
     else:
-        return url_split(host_or_url = path).dirname
+        return url_split(host_or_url=path).dirname
 
 
-def modified(url_or_path:str, user= '', passwd= '', acct = '') -> dtdt:
+def modified(url_or_path: str, user='', passwd='', acct='') -> StatsTuple:
     global _global_ftp
     return stats(url_or_path=url_or_path, user=user, passwd=passwd, acct=acct,
-                 output_option = 'modified_only')
+                 output_option='modified_only')
 
 
-def size(url:str, user= '', passwd= '', acct = '') -> int:
+def size(url: str, user='', passwd='', acct='') -> int:
     global _global_ftp
-    return _global_ftp.size(host_or_url = url, user=user, passwd = passwd, acct = acct)
+    return _global_ftp.size(host_or_url=url, user=user, passwd=passwd, acct=acct)
 
 
-def download(url_or_path:str, user= '', passwd= '', acct = '',
-             tgt_folder = '', overwrite:bool = True) -> GetTuple:
-
+def download(url_or_path: str, user='', passwd='', acct='',
+             tgt_folder='', overwrite: bool = True) -> GetTuple:
     # open ftp session
     global _global_ftp
-    return _global_ftp.download(url_or_path = url_or_path,
-                                user= user, passwd = passwd, acct = acct,
-                                tgt_folder = tgt_folder, overwrite = overwrite)
+    return _global_ftp.download(url_or_path=url_or_path,
+                                user=user, passwd=passwd, acct=acct,
+                                tgt_folder=tgt_folder, overwrite=overwrite)
 
 
-
-
-def compare_to_local(local_path:str, ftp_path:str, user= '', passwd= '', acct = '',
-                     hash_check:bool = False) -> CompareTuple:
+def compare_to_local(local_path: str, ftp_path: str, user='', passwd='', acct='',
+                     hash_check: bool = False) -> CompareTuple:
     """
     Compare a file on an ftp server with a local file.  If hash_check==False,
     then the ftp file does not need to be downloaded.  If hash_check==True, then
@@ -570,10 +575,10 @@ def compare_to_local(local_path:str, ftp_path:str, user= '', passwd= '', acct = 
     if hash_check:
         with tempfile.TemporaryDirectory() as fp:
             tmp_folder = str(fp)
-            download(url_or_path=ftp_path, user=user, passwd =passwd, acct=acct,
-                     tgt_folder = tmp_folder)
+            download(url_or_path=ftp_path, user=user, passwd=passwd, acct=acct,
+                     tgt_folder=tmp_folder)
             tmp_path = os.path.join(tmp_folder, ftp_stats.basename)
-            h_match = hash_match (lcl_path, tmp_path)
+            h_match = hash_match(lcl_path, tmp_path)
         match = h_match
     else:
         h_match = None
@@ -582,8 +587,8 @@ def compare_to_local(local_path:str, ftp_path:str, user= '', passwd= '', acct = 
     return CompareTuple(match, base_match, size_match, modified_match, h_match)
 
 
-def listdir(path:str, user= '', passwd= '', acct = '',
-            ftp_session = None, get_stats:bool = False) -> list:
+def listdir(path: str, user='', passwd='', acct='',
+            ftp_session=None, get_stats: bool = False) -> list:
     """
     Return a directory listing of path.
     :param path: may be a path within the url or the full url
@@ -601,18 +606,18 @@ def listdir(path:str, user= '', passwd= '', acct = '',
     if get_stats:
         raise NotImplementedError
 
-    ListTuple = namedtuple('ListTuple', ['name', 'modified','size', 'is_dir'])
+    ListTuple = namedtuple('ListTuple', ['name', 'modified', 'size', 'is_dir'])
     file_list, dirs, non_dirs = [], [], []
     res = []
 
     # open and log into path
     ftp = ftp_session
     if not ftp_session:
-        ftp = new_session(ftp_url = path, user = user, passwd = passwd, acct = acct)
+        ftp = new_session(ftp_url=path, user=user, passwd=passwd, acct=acct)
 
     parts = urlsplit(path)
 
-    ftp.retrlines (f'LIST {parts.path}', lambda s: file_list.append (s.split ()))
+    ftp.retrlines(f'LIST {parts.path}', lambda s: file_list.append(s.split()))
     for info in file_list:
         if os.name == 'nt':
             # info[1] = date
@@ -620,7 +625,7 @@ def listdir(path:str, user= '', passwd= '', acct = '',
             # info[-2] = type or size
             # info[-1] = name
             mod_time = info[0] + ' ' + info[1]
-            mod_time = dtdt.strptime (mod_time, '%m-%d-%y %I:%M%p')
+            mod_time = dtdt.strptime(mod_time, '%m-%d-%y %I:%M%p')
             if info[-2].upper() in ['<DIR>']:
                 # info[-2] = type
                 #           [name,     modified, size]
@@ -641,18 +646,33 @@ def listdir(path:str, user= '', passwd= '', acct = '',
             is_dir = False
             if ls_type.startswith('d'):
                 is_dir = True
-            res.append (ListTuple (name, None, None, is_dir))
+            res.append(ListTuple(name, None, None, is_dir))
 
     return res
 
 
-def is_dir(path:str, user= '', passwd= '', acct = '',
-           ftp_session = None) -> bool:
+def is_dir(path: str, user='', passwd='', acct='',
+           ftp_session=None) -> bool:
+    """
+
+    :param path: path on the ftp server
+    :type path: str
+    :param user: ftp username
+    :type user: str
+    :param passwd: ftp password
+    :type passwd: str
+    :param acct: ftp account
+    :type acct: str
+    :param ftp_session:  FTP.session.  If None, new session created.
+    :type ftp_session: FTP.session
+    :return: True if path is a directory, else False
+    :rtype: bool
+    """
     # open and log into path
     ftp = ftp_session
     if not ftp_session:
-        ftp = new_session(ftp_url = path, user = user, passwd = passwd, acct = acct)
-    parts = urlsplit (path)
+        ftp = new_session(ftp_url=path, user=user, passwd=passwd, acct=acct)
+    parts = urlsplit(path)
     try:
         orig_dir = ftp.pwd()
         ftp.cwd(parts.path)
@@ -686,11 +706,11 @@ def _func_examples():
     print('\nmodified\n', modified('ftp://ftp.pjm.com/oasis/CBMID.pdf'))
     print('\nsize\n', size('ftp://ftp.pjm.com/oasis/CBMID.pdf'))
     print('\ndownload\n', download('ftp://ftp.pjm.com/oasis/CBMID.pdf',
-                                   tgt_folder = 'C:/temp'))
+                                   tgt_folder='C:/temp'))
 
-    print ('\nlistdir')
-    for row in listdir ('ftp://ftp.pjm.com/oasis/CBMID.pdf'):
-        print (row)
+    print('\nlistdir')
+    for row in listdir('ftp://ftp.pjm.com/oasis/CBMID.pdf'):
+        print(row)
 
     print('\nis_dir("ftp://ftp.pjm.com/oasis")\n',
           is_dir('ftp://ftp.pjm.com/oasis'))
