@@ -8,12 +8,12 @@ from warnings import warn
 # from toolbox.file_util.path import is_valid_dir
 from toolbox.appdirs import user_config_dir
 from toolbox import path
-try:
-    from toolbox.pathlib import Path
-except Exception as e:
-    from pathlib import Path
-    warn(f'Error in toolbox.config.  Unable to import Path from toolbox.path.  '
-         f'Imported Path from pathlib instead.  {e}')
+# try:
+from toolbox.pathlib import Path
+# except Exception as e:
+#     from pathlib import Path
+#     warn(f'Error in toolbox.config.  Unable to import Path from toolbox.path.  '
+#          f'Imported Path from pathlib instead.  {e}')
 # import typing
 
 # If set to true, then every time a category or parameter is set, Config will
@@ -52,7 +52,7 @@ def example_config_file_from_filename():
     # Initialize a configuration object.  If the config file exists, it is
     # loaded, if not, it is created.
     cfg_fldr = Path (user_config_dir (appname = "example_config", roaming = True))
-    cfg_fldr.mkdir()
+    cfg_fldr.mkdir(parents=True, exist_ok=True)
     cfg_file = cfg_fldr.joinpath('example1.config')
     # cfg_file = os.path.join(user_config_dir(appname = "example_config", roaming = True), 'example1.config')
     cfg = Config(file = cfg_file, auto_save = True, roaming = True)
@@ -239,9 +239,6 @@ class Config(dict):
         if len(new_file.suffixes) == 0:
             new_file = new_file.with_suffix('.config')
         # check that new_filename looks like a path
-        path_like = path.is_path_like(new_file)
-        if not path_like:
-            raise ValueError(path_like)
 
         self._file = new_file
 
@@ -260,16 +257,16 @@ class Config(dict):
     def folder_name(self):
         return str(self.folder)
 
-    @staticmethod
-    def is_path_like(filename:str):
-        """
-        Perform a basic filename validation.  This is a cursory check; it does not
-        guarantee a valid filename.
-        :param filename: (str) a filename to test
-        :return: tuple of (pass, drive, folder, file, extension), where
-            pass = True if filename is path-like, else False
-        """
-        return path.is_path_like(filename = filename)
+    # @staticmethod
+    # def is_path_like(filename:str):
+    #     """
+    #     Perform a basic filename validation.  This is a cursory check; it does not
+    #     guarantee a valid filename.
+    #     :param filename: (str) a filename to test
+    #     :return: tuple of (pass, get_drive, folder, file, extension), where
+    #         pass = True if filename is path-like, else False
+    #     """
+    #     return path.is_path_like(filename = filename)
 
     def read_json(self):
         """ Load configuration data from file. """

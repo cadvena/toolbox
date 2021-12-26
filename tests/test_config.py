@@ -1,3 +1,4 @@
+import shutil
 import unittest
 from toolbox import config
 from toolbox.pathlib import Path
@@ -97,42 +98,43 @@ class TestConfig(unittest.TestCase):
     def test_filename(self):
         # fp = tempfile.TemporaryDirectory()
         # fp = Path(TempDir().path)
-        with tempfile.TemporaryDirectory() as fp:
-            os.chdir(fp)
-            # Test saving new config file
-            cfg_file1 = os.path.join (fp, 'test1.config')
-            cfg_file2 = os.path.join (fp, 'test2.config')
-            # test auto_save == False
-            cfg = Config (file = cfg_file1, auto_save = True)
-            cfg.set ('color', 'purple')
-            cfg['fruit'] = 'apple'
-            cfg.file = cfg_file2
-            del cfg
-            with open(cfg_file1, 'r') as f1:
-                lines1 = f1.readlines()
-            cfg1 = Config(file = cfg_file1, auto_save = False)
-            with open(cfg_file2, 'r') as f2:
-                lines2 = f2.readlines ()
-            cfg2 = Config (file = cfg_file2, auto_save = False)
-            self.assertEqual (cfg2['color'], 'purple')
-            self.assertEqual (cfg2['fruit'], 'apple')
-            self.assertEqual(cfg1, cfg2)
-            os.chdir(self.init_dir)
-        # fp.cleanup()
-        # fp.rmtree()
+        fp = tempfile.TemporaryDirectory()
+        os.chdir(fp.name)
+        # Test saving new config file
+        cfg_file1 = os.path.join (fp.name, 'test1.config')
+        cfg_file2 = os.path.join (fp.name, 'test2.config')
+        # test auto_save == False
+        cfg = Config (file = cfg_file1, auto_save = True)
+        cfg.set ('color', 'purple')
+        cfg['fruit'] = 'apple'
+        cfg.file = cfg_file2
+        del cfg
+        with open(cfg_file1, 'r') as f1:
+            lines1 = f1.readlines()
+        cfg1 = Config(file = cfg_file1, auto_save = False)
+        with open(cfg_file2, 'r') as f2:
+            lines2 = f2.readlines ()
+        cfg2 = Config (file = cfg_file2, auto_save = False)
+        self.assertEqual (cfg2['color'], 'purple')
+        self.assertEqual (cfg2['fruit'], 'apple')
+        self.assertEqual(cfg1, cfg2)
+        os.chdir(self.init_dir)
+        fp.cleanup()
+        if os.path.exists(fp.name):
+            shutil.rmtree(fp.name)
 
 
         self.assertEqual(lines1, lines2)
 
-    def test_is_path_like(self):
-        plike = Config.is_path_like
-        self.assertTrue(plike(r'C:\path\path2\file.ext'))
-        self.assertTrue(plike(r'C:/path/path.2/file.ext'))
-        # self.assertTrue(plike(r'C:/path/path2/file.ext/'))
-        self.assertTrue(plike(r'C:/path/path2'))
-        # self.assertFalse(plike(r'C:////path/path2/file.ext'))
-        self.assertTrue(plike(r'::/path/path2/file.ext'))
-        self.assertTrue(plike(r'../path/path2'))
+    # def test_is_path_like(self):
+    #     plike = Config.is_path_like
+    #     self.assertTrue(plike(r'C:\path\path2\file.ext'))
+    #     self.assertTrue(plike(r'C:/path/path.2/file.ext'))
+    #     # self.assertTrue(plike(r'C:/path/path2/file.ext/'))
+    #     self.assertTrue(plike(r'C:/path/path2'))
+    #     # self.assertFalse(plike(r'C:////path/path2/file.ext'))
+    #     self.assertTrue(plike(r'::/path/path2/file.ext'))
+    #     self.assertTrue(plike(r'../path/path2'))
 
     def test_dict(self):
         d = {'color': 'blue', 'fruit': 'apple'}
@@ -273,7 +275,7 @@ class TestDict_recursive_update(unittest.TestCase):
 
         # send an empty dict of updates.  Should have no affect
         cfg.update_if_none(dict_of_parameters = {}, recurse = True)
-        dict2 =
+        # dict2 =
         self.assertEqual(exist, cfg.dict)
 
         # update where not exists at top level
