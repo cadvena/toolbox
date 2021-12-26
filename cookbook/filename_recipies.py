@@ -24,7 +24,7 @@ def rand_filename(length = 16, suffix = '', include_datetime = False):
     """
     Creates a random filename, essentially a random string of characters that
     are permissible in a filename.  Returns a filename like "stem.suffix", no
-    drive:/folder/ component.
+    get_drive:/folder/ component.
     :param length: length of the filename returned (including suffix)
     :param suffix: if none provided, a random 3 to 5 character suffix (4 to 6
     including the '.') is created.

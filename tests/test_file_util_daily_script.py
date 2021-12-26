@@ -5,7 +5,6 @@ class TestClass(unittest.TestCase):
     def setUp(self):
         print("\nCalling TestOSWrapper.setUp()...")
 
-
     def tearDown(self):
         print("\nCalling TestOSWrapper.tearDown()...")
 
