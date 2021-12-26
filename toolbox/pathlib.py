@@ -6,10 +6,10 @@ from typing import *
 import os
 # from os.path import *
 import pathlib
+from pathlib import *
 import shutil
 # from shutil import *
 
-# import warnings
 from collections import namedtuple, deque
 from types import GeneratorType
 from toolbox.error_handler import ErrorHandler
@@ -38,7 +38,6 @@ default_make_assumptions = True
 # ##############################################################################
 # pathlib.Path wrapper
 # ##############################################################################
-
 
 class Path(pathlib.Path):
     """Adds some nice stuff on top of `pathlib.Path`
@@ -126,12 +125,12 @@ class Path(pathlib.Path):
     ----------------------------------------------------------------------------
     suffix
     parts       A tuple giving access to the path’s various components
-    drive       A string representing the drive letter or name, if any
+    get_drive       A string representing the get_drive letter or name, if any
     root        A string representing the (local or global) root, if any
-    anchor      The concatenation of the drive and root
+    anchor      The concatenation of the get_drive and root
     parents     An immutable sequence providing access to the logical ancestors of the path
     parent      The logical parent of the path
-    name        A string representing the final path component, excluding the drive and
+    name        A string representing the final path component, excluding the get_drive and
                 root, if any  (same as os.path.basename()
     suffix      The file extension of the final component, if any
     suffixes    A list of the path’s file extensions
@@ -158,11 +157,12 @@ class Path(pathlib.Path):
             cls._flavour = pathlib._windows_flavour
         else:
             cls._flavour = pathlib._posix_flavour
-        self = cls._from_parts(args, init = False)
+        self = cls._from_parts(args)
         if not self._flavour.is_supported:
             raise NotImplementedError("cannot instantiate %r on your system"
                                       % (cls.__name__,))
-        self._init()
+        # if py_ver < 3.10:  # python 3.10
+        self.__init__()
         return self
 
     def __init__(self, *args, **kwargs):
@@ -194,26 +194,38 @@ class Path(pathlib.Path):
             # if no suffixes then probably a dir, else probably a file
             return len(self.suffixes) == 0
 
-    def drive(self, find_implied: bool = default_find_implied):
-        """ If drive is not explicit in the Path, then get drive from
-        the absolute path. """
+    @property
+    def drive(self):
+        return super().drive
+
+    def get_drive(self, find_implied: bool = default_find_implied):
+        """ Like drive property, except with find_implied argument.  If find_implied == True,
+        then get drive from absolute path, i.e., Path.absolute().drive
+        the absolute path.
+        Examples:
+            p = Path("folder/stem.suffix")
+            p.drive -> ''
+            p.get_drive(implied = False) -> p.drive, i.e., ''
+            p.get_drive(implied = True) -> p.absolute().drive,
+                                           i.e., the drive of the current working directory
+
+            p = Path("C:/folder/stem.suffix")
+            p.drive -> 'C:'
+            p.get_drive(implied = False) -> p.drive, i.e., 'C:'
+            p.get_drive(implied = True) -> p.absolute().drive, i.e., 'C:'
+        """
         if find_implied:
-            drv = super().drive.strip('/').strip('\\')
-            if drv:
-                result = drv
-            else:
-                result = self.absolute().drive
+            # drv = super().get_drive.strip('/').strip('\\')
+            return super().drive or super().absolute().drive
         else:
-            result = super().drive
-        if not isinstance(result, Path): result = Path(result)
-        return result
+            return super().drive
 
     def drive_parent(self, find_implied: bool = default_find_implied):
         """
-        Returns string minus self.name.  If self.drive == '', then return
+        Returns string minus self.name.  If self.get_drive == '', then return
         self.absolute() minus self.name.  The result is similar to the first part
         of os.path.split()
-        :return: drive and parent folder name as a single string
+        :return: get_drive and parent folder name as a single string
         """
         if find_implied:
             drv = super().drive.strip('/').strip('\\')
@@ -223,7 +235,8 @@ class Path(pathlib.Path):
                 result = self.parent
         else:
             result = self.parent
-        if not isinstance(result, Path): result = Path(result)
+        if not isinstance(result, Path):
+            result = Path(result)
         return result
 
     def folder_part(self, make_assumptions = default_make_assumptions):
@@ -235,22 +248,26 @@ class Path(pathlib.Path):
 
         :return:
         """
-
-        if self.is_file(make_assumptions = make_assumptions):
-            result = self.parent
-        elif self.is_dir(make_assumptions = make_assumptions):
-            result = self
-        else:
-            raise NotImplementedError
-        if not isinstance(result, Path): result = Path(result)
-        return result
+        return self.drive_folder(find_implied=False, make_assumptions = make_assumptions)
 
     def drive_folder(self, find_implied: bool = default_find_implied,
                      make_assumptions = default_make_assumptions):
-        if find_implied and not super().drive.strip('/').strip('\\'):
+        if find_implied:
+            p = self.absolute()
+        else:
+            p = self
+        drive = self.get_drive(find_implied=False)
+        if find_implied and drive == '.':
             result = self.absolute().folder_part(make_assumptions = make_assumptions)
         else:
-            result = self.folder_part(make_assumptions = make_assumptions)
+            if self.is_file(make_assumptions=make_assumptions):
+                result = self.parent
+            elif self.is_dir(make_assumptions=make_assumptions):
+                result = self
+            else:
+                raise NotImplementedError
+            if not isinstance(result, Path):
+                result = Path(result)
         # if not isinstance (result, Path): result = Path (result)
         return result
 
@@ -274,7 +291,7 @@ class Path(pathlib.Path):
         """
         # If the path exists, then we can assume it is valid.
         PathInfo = namedtuple('PathInfo', ['is_file', 'is_dir', 'absolute', 'drive_folder',
-                                           'drive', 'folder_part', 'parent', 'name', 'stem',
+                                           'get_drive', 'folder_part', 'parent', 'name', 'stem',
                                            'suffix', 'suffixes', 'filename_sans_folders'])
         is_file = self.is_file(make_assumptions = make_assumptions)
         filename_sans_folders = name
@@ -287,7 +304,7 @@ class Path(pathlib.Path):
                 'absolute': self.absolute(),
                 'drive_folder': self.drive_folder(find_implied = find_implied, make_assumptions =
                 make_assumptions),
-                'drive': self.drive(find_implied = find_implied),
+                'get_drive': self.get_drive(find_implied = find_implied),
                 'folder_part': self.folder_part(make_assumptions = make_assumptions),
                 'parent': self.parent.str,
                 'name': self.name,
@@ -302,7 +319,7 @@ class Path(pathlib.Path):
                             self.absolute(),
                             self.drive_folder(find_implied = find_implied, make_assumptions =
                             make_assumptions),
-                            self.drive(find_implied = find_implied),
+                            self.get_drive(find_implied = find_implied),
                             self.folder_part(make_assumptions = make_assumptions),
                             self.parent.str,
                             self.name,
@@ -829,7 +846,7 @@ sameopenfile(fp1, fp2)  os.path.sameopenfile(fp1, fp2):
 samestat(stat1, stat2)  os.path.samestat(stat1, stat2):
                     Return True if the stat tuples stat1 and stat2 refer to the same file.
 split(path)         os.path.split(path): Split the pathname path into a pair, (head, tail) 
-splitdrive(path)    os.path.splitdrive(path): Split the pathname path into a pair (drive, tail) 
+splitdrive(path)    os.path.splitdrive(path): Split the pathname path into a pair (get_drive, tail) 
 splitext(path)      os.path.splitext(path): Split the pathname path into a pair (root, ext) 
                     such that root + ext == path, and the extension, ext, is empty or begins 
                     with a period and contains at most one period.
@@ -1112,12 +1129,12 @@ def parse_path(filename: str):
     Perform a basic filename validation.  This is a cursory check; it does not
     guarantee a valid filename.
     :param filename: (str) a filename to test
-    :return: tuple of (pass, drive, folder, file, extension), where
+    :return: tuple of (pass, get_drive, folder, file, extension), where
         pass = True if filename is path-like, else False
     """
     # If the path exists, then we can assume it is valid.
     PathParts = namedtuple('PathParts', ['folder_exists', 'basename_exists', 'drive_folder',
-                                         'drive', 'folder', 'basename', 'file', 'ext'])
+                                         'get_drive', 'folder', 'basename', 'file', 'ext'])
     folder_exists = False
     basename_exists = False
     if os.path.exists(filename):
@@ -1140,9 +1157,9 @@ def parse_path(filename: str):
         # Split path_str into dir, file (part between dir and extension), extension (variables: d,
         # f, e)
         abs_path = os.path.abspath(filename)
-        # fldr, base = drive:/folder, file.ext
+        # fldr, base = get_drive:/folder, file.ext
         drv_fldr, base = os.path.split(abs_path)
-        # split fldr to drive, folder
+        # split fldr to get_drive, folder
         drv, fldr = os.path.splitdrive(drv_fldr)
         # split base to file, ext
         f, ext = os.path.splitext(base)
@@ -1231,7 +1248,7 @@ def is_path_like(filename: Union[Path, str]):
     guarantee a valid filename.
     ** Note: used in toolbox.config.Config
     :param filename: (str) a filename to test
-    :return: tuple of (pass, drive, folder, file, extension), where
+    :return: tuple of (pass, get_drive, folder, file, extension), where
         pass = True if filename is path-like, else False
     """
     # If the path exists, then we can assume it is valid.
@@ -1249,9 +1266,9 @@ def is_path_like(filename: Union[Path, str]):
     # Split path_str into dir, file (part between dir and extension), extension (variables: d,
     # f, e)
     abs_path = os.path.abspath(filename)
-    # fldr, base = drive:/folder, file.ext
+    # fldr, base = get_drive:/folder, file.ext
     fldr, base = os.path.split(abs_path)
-    # split fldr to drive, folder
+    # split fldr to get_drive, folder
     drv, fldr = os.path.splitdrive(fldr)
     # split base to file, ext
     f, ext = os.path.splitext(base)
