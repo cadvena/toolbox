@@ -1,4 +1,7 @@
 import os
+import warnings
+
+import bs4
 from bs4 import BeautifulSoup
 from collections import namedtuple
 from datetime import datetime as dtdt
@@ -9,10 +12,11 @@ from requests.models import Response as _Response
 from toolbox import tb_cfg, appdirs
 from toolbox.config import Config
 from toolbox.file_util import backup_file
-from toolbox.file_util.ez_ftp import FTP  # , StatsTuple
+from toolbox.ez_ftp import FTP  # , StatsTuple
 from toolbox.file_util.hash import hash_match
 from toolbox.pathlib import Path
 from toolbox.swiss_army import is_iterable
+toolbox import error_handler
 from pprint import pprint
 from warnings import warn
 from typing import Union
@@ -23,6 +27,12 @@ try:
 except ImportError as e:
     warn("Unable to import 'pjmlib.requests'.  Using built-in 'requests' instead.")
     import requests
+try:
+    from requests_html import HTMLSession
+except ModuleNotFoundError as e:
+    HTMLSession = None
+    warnings.warn("Unable to import reqeusts_html.HTMLSession.  "
+                  "WegPage.forms() may not work as excpected if argument execute_js == True")
 try:
     from toolbox.swiss_army import urlparse
 except:
@@ -57,9 +67,9 @@ DIR_HOME = tb_cfg['LINK_CHECKER']['DIR_HOME']
 DIR_IN = tb_cfg['LINK_CHECKER']['DIR_IN']
 DIR_OUT = tb_cfg['LINK_CHECKER']['DIR_OUT']
 
-BREAK_RESISTANT: bool = True
-if os.environ['username'] == 'advena':
-    BREAK_RESISTANT: bool = False
+# BREAK_RESISTANT: bool = True
+# if os.environ['username'] == 'advena':
+#     BREAK_RESISTANT: bool = False
 
 
 # ##############################################################################
@@ -93,6 +103,9 @@ def clean_url(unclean_url):
 
 
 class WebPage:
+    error_handler = error_handler.ErrorHandler()
+    ignore_errors = error_handler.ignore_errors
+
     def __init__(self, url: str, cache: bool = True, working_dir = None):
         self.url = clean_url(url)
         parts = urlparse(url)
@@ -106,9 +119,11 @@ class WebPage:
         self._get_exception = None
         self._get = None
         self._anchors = None
+        self._absolute_urls = None
         self.internal_domain = 'pjm.com'
         self.working_dir = working_dir
 
+    @error_handler.wrap(on_error_return=None)
     def head(self, cache: bool = None):
         """
         Gets the response from HEAD.  If HEAD was already retrieved and cache=True,
@@ -124,8 +139,6 @@ class WebPage:
             except Exception as e:
                 self._head = None
                 self._head_exception = e
-                # if not BREAK_RESISTANT:
-                #     raise e
         return self._head
 
     @property
@@ -151,7 +164,8 @@ class WebPage:
         else:
             return False  # self._get_exception and self._head_exception
 
-    def get(self, cache: bool = None, **kwargs) -> Union[_Response, Exception]:
+    @error_handler.wrap(on_error_return=None)
+    def get(self, cache: bool = None, execute_js: bool = False, **kwargs) -> Union[_Response, Exception]:
         """
         Gets the response from GET.  If a response was already retrieved and cache=True,
         then use previously received response.
@@ -161,13 +175,20 @@ class WebPage:
         cache = cache or self.cache
         if self._get is None or not isinstance(self._get, _Response) or not cache:
             try:
-                self._get = requests.get(self.url, **kwargs)
+                session = None
+                if execute_js:
+                    try:
+                        session = HTMLSession()
+                        self._get = session.get(self.url)
+                    except:
+                        session = None
+                if session is None:
+                    self._get = requests.get(self.url, **kwargs)
                 self._get_exception = None
             except Exception as e:
                 self._get = e
                 self._get_exception = e
-                if not BREAK_RESISTANT:
-                    raise e
+                raise e
         return self._get
 
     def text(self, cache: bool = None):
@@ -181,7 +202,8 @@ class WebPage:
             self._text = self._get
         return self._text
 
-    def soup(self, cache: bool = None) -> Union[BeautifulSoup, Exception]:
+    @error_handler.wrap(on_error_return=None)
+    def soup(self, cache: bool = None, execute_js: bool = False, **getkwargs) -> Union[BeautifulSoup, Exception]:
         """ Returns BeautifulSoup(url) or an Exception. """
         cache = cache or self.cache
         # try:
@@ -194,19 +216,22 @@ class WebPage:
             if isinstance(self._text, Exception):
                 self._soup = self._text
             else:
+                if execute_js:
+                    text = self.get(cache=cache, execute_js=execute_js, **getkwargs)
+                else:
+                    text = self._text
                 try:
-                    self._soup = BeautifulSoup(self._text, features = 'lxml')
+                    self._soup = BeautifulSoup(text, features = 'lxml')
                 except AttributeError as e:
                     warn("BeautifulSoup unable to parse using 'lxml'.  Trying 'html5lib'.")
                     try:
-                        self._soup = BeautifulSoup(self._text, features = 'html5lib')
+                        self._soup = BeautifulSoup(text, features = 'html5lib')
                     except Exception as e:
                         self._soup = e
-                        if not BREAK_RESISTANT:
-                            raise e
-
+                        raise e
         return self._soup
 
+    @error_handler.wrap(on_error_return=[])
     def anchors(self, cache: bool = None, full_links: bool = False,
                 same_domain: bool = False, regex_pattern: str = None):
         """
@@ -227,8 +252,7 @@ class WebPage:
                                  for link in self._soup.find_all('a')]
             except AttributeError as e:
                 self._anchors = e
-                if not BREAK_RESISTANT:
-                    raise e
+                raise e
                 return self._anchors
 
         result = self._anchors
@@ -243,6 +267,55 @@ class WebPage:
         if regex_pattern:
             result = [x for x in result if re.match(pattern = regex_pattern, string = x)]
         return result
+
+    def absolute_urls(self, cache: bool = None):
+        """
+        Returns soup.find_all() for "link", "script", "img" and "a"
+        :param cache: Iff True and absolute_urls already created/cached, use the cached values
+        :type cache: bool
+
+        :return: absolute urls from self._soup
+        :rtype:
+        """
+        cache = cache or self.cache
+        if cache and not self._absolute_urls:
+            # self.cahce==True and self._absolute_urls was already set, so we can skip the legwork
+            # and simply return self._absolute_urls
+            pass
+        else:
+            temp = self._soup.find_all("link")
+            for link in self.temp:
+                try:
+                    link.attrs["href"] = urljoin(self.url, link.attrs["href"])
+                except:
+                    pass
+            self._absolute_urls = temp
+
+            temp = self._soup.find_all("script")
+            for script in self._absolute_urls:
+                try:
+                    script.attrs["src"] = urljoin(self.url, script.attrs["src"])
+                except:
+                    pass
+            self._absolute_urls += temp
+
+            temp = self._soup.find_all("img")
+            for img in self._soup.find_all("img"):
+                try:
+                    img.attrs["src"] = urljoin(self.url, img.attrs["src"])
+                except:
+                    pass
+            self._absolute_urls += temp
+
+            temp = self._soup.find_all("a")
+            for a in self._soup.find_all("a"):
+                try:
+                    a.attrs["href"] = urljoin(self.url, a.attrs["href"])
+                except:
+                    pass
+            self._absolute_urls += temp
+
+        return self._absolute_urls
 
     def contains_child_url(self, child_url: str, ends_with: bool = True):
         """
@@ -261,6 +334,7 @@ class WebPage:
                     return True
         return False
 
+    @error_handler.wrap(on_error_return=[])
     def save_page(self, save_as: str = None, mode: str = 'wb') -> SaveResult:
         """
         Save a requests response to disk.
@@ -281,8 +355,7 @@ class WebPage:
                 raise WebPageNotLoadedError
             except SaveResult as e:
                 excep = e
-                if not BREAK_RESISTANT:
-                    raise e
+                # raise e
         else:
             if not save_as:
                 save_as = os.path.split(self.url)[-1]
@@ -297,17 +370,15 @@ class WebPage:
             try:
                 if not save_as.parent.exists():
                     save_as.parent.mkdir(parents = True)
-
+                if not mode.endswith('b') and isinstance(response.content, bytes):
+                    warn(f'"{self.url}" content is bytes.  Saving {save_as} '
+                         f'with mode = "wb" instead of "{mode}".')
+                    mode = 'wb'
                 with open(save_as, mode = mode) as writer:
-                    if not mode.endswith('b') and isinstance(response.content, bytes):
-                        warn(f'"{self.url}" content is bytes.  Saving {save_as} '
-                             f'with mode = "wb" instead of "{mode}".')
-                        mode = 'wb'
                     writer.write(response.content)
             except Exception as e:
                 excep = e
-                if not BREAK_RESISTANT:
-                    raise e
+                raise e
             # SaveResult = namedtuple('SaveResult', ['filename', 'exception', 'hash'])
             return SaveResult(save_as, excep, None)
 
@@ -322,20 +393,113 @@ class WebPage:
         else:
             return self.text().find(string)
 
-    def timestamp(self, cache: bool = None):
+    def get_forms(self, cache: bool = None, execute_js:bool = False) -> bs4.element.ResultSet:
+        """
+        Returns all form tags found on WebPage
+        based on https://www.thepythoncode.com/article/extracting-and-submitting-web-page-forms-in-python/
+        """
         cache = cache or self.cache
+        # GET request
+        soup = self.soup(cache=cache)
+        return soup.find_all("form")
+    @staticmethod
+    def get_form_details(form):  # -> bs4.element.Tag:
+        """Returns the HTML details of a form,
+        including action, method and list of form controls (inputs, etc)
+        based on https://www.thepythoncode.com/article/extracting-and-submitting-web-page-forms-in-python/
+        :param form: a form from WebPage.get_forms()
+        :type form: bs4.element.ResultSet
+        :return: the HTTP response
+        :rtype: requests.models.Response
+        """
+        details = {}
+        # get the form action (requested URL)
+        action = form.attrs.get("action").lower()
+        # get the form method (POST, GET, DELETE, etc)
+        # if not specified, GET is the default in HTML
+        method = form.attrs.get("method", "get").lower()
+        # get all form inputs
+        inputs = []
+        for input_tag in form.find_all("input"):
+            # get type of input form control
+            input_type = input_tag.attrs.get("type", "text")
+            # get name attribute
+            input_name = input_tag.attrs.get("name")
+            # get the default value of that input tag
+            input_value = input_tag.attrs.get("value", "")
+            # add everything to that list
+            inputs.append({"type": input_type, "name": input_name, "value": input_value})
+        # put everything to the resulting dictionary
+        details["action"] = action
+        details["method"] = method
+        details["inputs"] = inputs
+        return details
+
+    def submit_form(self, form, data: dict):
+        """
+        Use case:  (1) run .get_form_details(form)['inputs'] method to get form details.
+                   (2) put your data into a dictionary
+                   (3) use this method to pass your data in the form submission.
+        Example:
+            # create a WebPage object
+            page = WebPage('https://wikipedia.org')
+            # get all forms from page
+            forms = page.get_forms()
+            # get the details from the first form, forms[0]
+            form_details = page.get_form_details(forms[0])
+            # get only the input fields from the form
+            input_fields = form_details['inputs']
+            # prompt user for form data
+            data = {}
+            for input_tag in form_details["inputs"]:
+                if input_tag["type"] == "hidden":
+                    # if it's hidden, use the default value
+                    data[input_tag["name"]] = input_tag["value"]
+                elif input_tag["type"] != "submit":
+                    # all others except submit, prompt the user to set it
+                    value = input(f"Enter the value of the field '{input_tag['name']}' (type: {input_tag['type']}): ")
+                    data[input_tag["name"]] = value
+            response = page.submit_form(forms[0], data)
+
+        based on https://www.thepythoncode.com/article/extracting-and-submitting-web-page-forms-in-python/
+        :param form: a form from WebPage.get_forms()
+        :type form: bs4.element.ResultSet
+        :param data: form data in dict of {tag_name: value, tag_name, value, ...}
+        :type data: dict
+        :return: the HTTP response as soup
+        :rtype: soup  # requests.models.Response
+        """
+        # TODO WIP: this method not yet tested/verified to work.
+        form_details = self.get_form_details(form)
+
+        # Validate that data contains valid input tags
+        # get a list of valid input tags for the form
+        # # input_tags = []
+        # # for input_tag in form_details["inputs"]:
+        # #     if input_tag["type"] not in [ "hidden", "submit"]:
+        # #         input_tags += [input_tag["name"]]
+        # input_tags = [input_tag["name"] for input_tag in form_details["inputs"]
+        #               if input_tag["type"] not in ["hidden", "submit"]]
+        # for key in data.keys():
+        #     assert(key in input_tags)
+
+        url = urljoin(self.url, form_details["action"])
+
+        if form_details["method"] == "post":
+            response = requests.post(url=url, data=data)
+        elif form_details["method"] == "put":
+            response = requests.put(url, data=data)
+        elif form_details["method"] == "delete":
+            response = requests.delete(url, params=data)
+        elif form_details["method"] == "get":
+            response = requests.get(url, params=data)
+        else:
+            raise NotImplementedError(f"method {form_details['method']} not implemented")
+
         try:
-            if self._get:
-                date_str = self._get.headers._store['date'][-1]
-            else:
-                date_str = self.head(cache = cache).headers._store['date'][-1]
-        except KeyError as e:
-            date_str = None
+            return BeautifulSoup(response.content, 'html5lib')
         except Exception as e:
-            if not BREAK_RESISTANT:
-                raise e
-            return e
-        return dt2str(date_str)
+            return BeautifulSoup(response.content, "lxml")
 
 
 # ##############################################################################
@@ -399,6 +563,7 @@ def deep_link_check(url, local_file_path = None,
     return res
 
 
+@error_handler.wrap(on_error_return=[])
 def deep_link_check_http(url, local_file_path = '',
                          hash_check: bool = True,
                          check_child_url: str = '',
@@ -427,10 +592,9 @@ def deep_link_check_http(url, local_file_path = '',
         res['reason'] = page.get().reason
         res['success'] = page.get().ok
     except Exception as e:
-        if not BREAK_RESISTANT:
-            raise e
         res['success'] = False
         res['reason'] = f'Error: Webpage failed unexpectedly. ("{url}") {e}'
+        raise e
         return res
 
     # Compare known good file (local_file_path) to posted file
@@ -443,10 +607,9 @@ def deep_link_check_http(url, local_file_path = '',
             res['reason'] = f'Error: Local File Not Found.  local_file_path "{url}" not found.  {e}'
             return res
         except Exception as e:
-            if not BREAK_RESISTANT:
-                raise e
             res['success'] = False
-            res['reason'] = f'Error: File Open Error.  Cannot open local_file_path "{url}".  {e}'
+            res['reason'] = f'Error: File Open Err or.  Cannot open local_file_path "{url}".  {e}'
+            raise e
             return res
         try:
             remote_file_size = page.get().headers._store['content-length'][-1]
@@ -456,10 +619,9 @@ def deep_link_check_http(url, local_file_path = '',
                 try:
                     remote_file_size = Path(downloaded_file.filename).getsize()
                 except Exception as e:
-                    if not BREAK_RESISTANT:
-                        raise e
                     res['success'] = False
                     res['reason'] = f'Error: Get File size failed.  "{url}"  {e}'
+                    raise e
                     return res
 
         if local_file_size != remote_file_size:
@@ -483,12 +645,11 @@ def deep_link_check_http(url, local_file_path = '',
             try:
                 match = hash_match(downloaded_file.filename, local_file_path)
             except Exception as e:
-                if not BREAK_RESISTANT:
-                    raise e
                 res['success'] = False
                 res['reason'] = f'Error: Hash Error.  Unexpected failure of hash_match function' \
                                 + f' of "{downloaded_file}" and ' \
                                 + f'"{local_file_path}" modified ' + str(e)
+                raise e
                 return res
 
             if not match:
@@ -533,6 +694,7 @@ def deep_link_check_http(url, local_file_path = '',
     return res
 
 
+@error_handler.wrap(on_error_return=[])
 def deep_link_check_ftp(url, local_file_path = '',
                         hash_check: bool = True,
                         check_child_url: str = '',  # ignored
@@ -556,23 +718,21 @@ def deep_link_check_ftp(url, local_file_path = '',
     try:
         ftp = FTP(url)
     except Exception as e:
-        if not BREAK_RESISTANT:
-            raise e
         res['success'] = False
         res['reason'] = f'Error:  FTP Session Error.  Cannot create FTP session: FTP("{url}").'\
                         + str(e)
+        raise e
         return res
 
     if posted_after:
         try:
             remote_file_date = ftp.modified(host_or_url = url)
         except Exception as e:
-            if not BREAK_RESISTANT:
-                raise e
             res['success'] = False
             res['reason'] = f'Error: Get Modified Date Error.  Unable to get modified date of ' \
                             f'"{url}" from server.' + str(e)
             return res
+            raise e
         res['timestamp'] = remote_file_date.isoformat()
 
         if remote_file_date >= posted_after:
@@ -593,11 +753,10 @@ def deep_link_check_ftp(url, local_file_path = '',
                             + 'File probably does not exist' + str(e)
             return res
         except Exception as e:
-            if not BREAK_RESISTANT:
-                raise e
             res['success'] = False
             res['reason'] = f'Error: Get Local File Size Error.  unable to get file ' \
                             f'size of known good file "{local_file_path}".' + str(e)
+            raise e
             return res
 
         try:
@@ -613,11 +772,10 @@ def deep_link_check_ftp(url, local_file_path = '',
                 res['reason'] = f'Error: File not found on FTP server: "{url}"' + str(e)
                 return res
             except Exception as e:
-                if not BREAK_RESISTANT:
-                    raise e
                 res['success'] = False
                 res['reason'] = f'Error: Get FTP File Size unable to get file size of ' \
                                 + f'"{url}" from server.' + str(e)
+                raise e
                 return res
 
         if local_file_size != remote_file_size:
@@ -635,11 +793,10 @@ def deep_link_check_ftp(url, local_file_path = '',
                     downloaded_file = ftp.download(url_or_path = url, overwrite = True,
                                                    tgt_folder = working_dir)
                 except Exception as e:
-                    if not BREAK_RESISTANT:
-                        raise e
                     res['success'] = False
                     res['reason'] = f'Error: Download Error.  Unable to download ' \
                                     + f'"{url}" from server.' + str(e)
+                    raise e
                     return res
 
             # hash check
@@ -651,13 +808,12 @@ def deep_link_check_ftp(url, local_file_path = '',
                                     + f' are not the same.  Failed hash check.  '
                     return res
             except Exception as e:
-                if not BREAK_RESISTANT:
-                    raise e
                 res['success'] = False
                 res['reason'] = f'Error: Unexpected Hash Check Error.  Failure attempting ' \
                                 + f'to hash check "{url}" downloaded to ' \
                                 + f'"{downloaded_file.target_filename}" against ' \
                                 + '"{local_file_path}"' + str(e)
+                raise e
                 return res
 
     if check_child_url:
