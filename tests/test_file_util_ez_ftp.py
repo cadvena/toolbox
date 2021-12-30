@@ -1,8 +1,8 @@
 # 1 - Import unittest (find 2 under "if __name__ == '__main__'")
 import unittest
 from datetime import datetime as dtdt
-from toolbox.file_util import ez_ftp
-from toolbox.file_util.ez_ftp import StatsTuple, GetTuple, FTPPathParts, url_join
+from toolbox import ez_ftp
+from toolbox.ez_ftp import StatsTuple, url_join
 
 # StatsTuple = namedtuple (typename = 'StatsTuple',
 #                          field_names = ('scheme', 'netloc', 'path', 'dirname',
@@ -65,13 +65,13 @@ class TestFTP(unittest.TestCase):
         self.assertEqual(x.basename, 'CBMID.pdf')
 
     def test_url_join(self):
-        self.assertEqual(ez_ftp.FTP.url_join('ftp',cbm.netloc,'oasis'),
+        self.assertEqual(ez_ftp.FTP.url_join('ftp', cbm.netloc, 'oasis'),
                          'ftp://ftp.pjm.com/oasis')
-        self.assertEqual(ez_ftp.FTP.url_join('ftp',cbm.netloc, ''), 'ftp://ftp.pjm.com')
-        self.assertEqual(ez_ftp.FTP.url_join('ftp',cbm.netloc), 'ftp://ftp.pjm.com')
-        self.assertEqual(ez_ftp.FTP.url_join('',cbm.netloc), 'ftp://ftp.pjm.com')
-        self.assertEqual(ez_ftp.FTP.url_join('',cbm.netloc,'/oasis/'), 'ftp://ftp.pjm.com/oasis/')
-        self.assertEqual(ez_ftp.FTP.url_join('FTPS',cbm.netloc,'/oasis'), 'FTPS://ftp.pjm.com/oasis')
+        self.assertEqual(ez_ftp.FTP.url_join('ftp', cbm.netloc, ''), 'ftp://ftp.pjm.com')
+        self.assertEqual(ez_ftp.FTP.url_join('ftp', cbm.netloc), 'ftp://ftp.pjm.com')
+        self.assertEqual(ez_ftp.FTP.url_join('', cbm.netloc), 'ftp://ftp.pjm.com')
+        self.assertEqual(ez_ftp.FTP.url_join('', cbm.netloc, '/oasis/'), 'ftp://ftp.pjm.com/oasis/')
+        self.assertEqual(ez_ftp.FTP.url_join('FTPS', cbm.netloc, '/oasis'), 'FTPS://ftp.pjm.com/oasis')
 
     def test_dirname(self):
         x = ez_ftp.FTP().dirname('ftp://ftp.pjm.com/parent/child/file.ext')
@@ -231,7 +231,7 @@ class TestFunctions(unittest.TestCase):
     def test_url_split(self):
         # def url_split(host_or_url, source_address: tuple = None)
         # return FTPPathParts(scheme, host, path, _dirname, _basename, url)
-        tpl = ez_ftp.url_split(host_or_url = 'ftp.pjm.com')
+        tpl = ez_ftp.url_split(host_or_url ='ftp.pjm.com')
         self.assertEqual(tpl.basename, '')
         self.assertEqual(tpl.dirname, '')
         self.assertEqual(tpl.path, '')
@@ -239,7 +239,7 @@ class TestFunctions(unittest.TestCase):
         self.assertEqual(tpl.scheme, 'ftp')
         self.assertEqual(tpl.url, 'ftp://ftp.pjm.com')
 
-        tpl = ez_ftp.url_split(host_or_url = 'ftp://ftp.pjm.com/oasis/CBMID.pdf')
+        tpl = ez_ftp.url_split(host_or_url ='ftp://ftp.pjm.com/oasis/CBMID.pdf')
         self.assertEqual(tpl.basename, 'CBMID.pdf')
         self.assertEqual(tpl.dirname, '/oasis')
         self.assertEqual(tpl.path, '/oasis/CBMID.pdf')
@@ -248,12 +248,12 @@ class TestFunctions(unittest.TestCase):
         self.assertEqual(tpl.url, 'ftp://ftp.pjm.com/oasis/CBMID.pdf')
 
     def test_new_session(self):
-        ez_ftp.new_session(ftp_url = 'ftp.pjm.com')
+        ez_ftp.new_session(ftp_url ='ftp.pjm.com')
         ez_ftp._global_ftp.quit()
-        ez_ftp.new_session(ftp_url = 'ftp://ftp.pjm.com')
-        ez_ftp.new_session(ftp_url = 'ftps://ftp.pjm.com')
-        ez_ftp.new_session(ftp_url = 'FTP://ftp.pjm.com')
-        ez_ftp.new_session(ftp_url = 'FTPS://ftp.pjm.com')
+        ez_ftp.new_session(ftp_url ='ftp://ftp.pjm.com')
+        ez_ftp.new_session(ftp_url ='ftps://ftp.pjm.com')
+        ez_ftp.new_session(ftp_url ='FTP://ftp.pjm.com')
+        ez_ftp.new_session(ftp_url ='FTPS://ftp.pjm.com')
         ez_ftp._global_ftp.quit()
 
     def test_stats(self):
@@ -290,12 +290,12 @@ class TestFunctions(unittest.TestCase):
         stats = ez_ftp.stats('oasis')
 
     def test_url_join(self):
-        self.assertEqual(ez_ftp.url_join('ftp','ftp.pjm.com','oasis'), 'ftp://ftp.pjm.com/oasis')
-        self.assertEqual(ez_ftp.url_join('ftp','ftp.pjm.com', ''), 'ftp://ftp.pjm.com')
-        self.assertEqual(ez_ftp.url_join('ftp','ftp.pjm.com'), 'ftp://ftp.pjm.com')
-        self.assertEqual(ez_ftp.url_join('','ftp.pjm.com'), 'ftp://ftp.pjm.com')
-        self.assertEqual(ez_ftp.url_join('','ftp.pjm.com','/oasis/'), 'ftp://ftp.pjm.com/oasis/')
-        self.assertEqual(ez_ftp.url_join('FTPS','ftp.pjm.com','/oasis/'), 'FTPS://ftp.pjm.com/oasis/')
+        self.assertEqual(ez_ftp.url_join('ftp', 'ftp.pjm.com', 'oasis'), 'ftp://ftp.pjm.com/oasis')
+        self.assertEqual(ez_ftp.url_join('ftp', 'ftp.pjm.com', ''), 'ftp://ftp.pjm.com')
+        self.assertEqual(ez_ftp.url_join('ftp', 'ftp.pjm.com'), 'ftp://ftp.pjm.com')
+        self.assertEqual(ez_ftp.url_join('', 'ftp.pjm.com'), 'ftp://ftp.pjm.com')
+        self.assertEqual(ez_ftp.url_join('', 'ftp.pjm.com', '/oasis/'), 'ftp://ftp.pjm.com/oasis/')
+        self.assertEqual(ez_ftp.url_join('FTPS', 'ftp.pjm.com', '/oasis/'), 'FTPS://ftp.pjm.com/oasis/')
 
     def test_basename(self):
         self.assertEqual(ez_ftp.basename('ftp://ftp.pjm.com/oasis/CBMID.pdf'), 'CBMID.pdf')
@@ -317,13 +317,13 @@ class TestFunctions(unittest.TestCase):
         self.assertEqual(ez_ftp.size('ftp://ftp.pjm.com'), None)
 
     def test_download_and_compare_to_local(self):
-        ez_ftp.download('ftp://ftp.pjm.com/oasis/CBMID.pdf', tgt_folder = 'c:/temp')
-        ez_ftp.download('ftp.pjm.com/oasis/CBMID.pdf', tgt_folder = 'c:/temp')
+        ez_ftp.download('ftp://ftp.pjm.com/oasis/CBMID.pdf', tgt_folder ='c:/temp')
+        ez_ftp.download('ftp.pjm.com/oasis/CBMID.pdf', tgt_folder ='c:/temp')
         x = ez_ftp.compare_to_local('c:/temp/CBMID.pdf', 'ftp.pjm.com/oasis/CBMID.pdf',
-                                 hash_check=False)
+                                    hash_check=False)
         self.assertTrue(x, "downloaded 'ftp.pjm.com/oasis/CBMID.pdf' but comparison to local file failed; (no hash_check requested).")
         x = ez_ftp.compare_to_local('c:/temp/CBMID.pdf', 'ftp.pjm.com/oasis/CBMID.pdf',
-                                 hash_check=True)
+                                    hash_check=True)
         self.assertTrue(x, "downloaded 'ftp.pjm.com/oasis/CBMID.pdf' but comparison to local file failed; (hash_check requested).")
 
     def test_listdir(self):
