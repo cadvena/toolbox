@@ -1,7 +1,10 @@
 # -- 1 -- Import unittest (find 2 under "if __name__ == '__main__'")
 import unittest
+import warnings
+
 import requests
 from toolbox import tb_cfg
+from toolbox.appdirs import user_data_dir
 from toolbox.config import Config
 import toolbox.link_checker as lc
 from toolbox.link_checker import WebPage, deep_link_check, deep_link_check_http, \
@@ -19,6 +22,11 @@ from toolbox.pathlib import Path
 # ##############################################################################
 dir_home = Path(r"\\corp.pjm.com\shares\TransmissionServices\TSI\Compliance\OASISWebChecker"
                 r"\test")
+if not dir_home.exists():
+    try:
+        dir_home.mkdir(parents=True, exist_ok=True, force_replace=False)
+    except Exception as e:
+        dir_home = user_data_dir('toolbox', 'link_checker')
 cfg = Config(file = dir_home.joinpath("link_checker.cfg"))
 default_config = {
     'LINK_CHECKER': {
@@ -197,11 +205,11 @@ class TestWebPage(unittest.TestCase):
         result = page.find("https://www.pjm.com/-/media/etools/capacity-exchange/erpm-designated.ashx")
         self.assertTrue(result)
 
-    def test_webpage_timestamp(self):
-        url = self.oasis
-        page = WebPage(url, cache = False)
-        result = page.timestamp()
-        self.assertTrue(isinstance(result, dtdt))
+    # def test_webpage_timestamp(self):
+    #     url = self.oasis
+    #     page = WebPage(url, cache = False)
+    #     result = page.timestamp()
+    #     self.assertTrue(isinstance(result, dtdt))
 
     def test_webpage_contains_child_url(self):
         url = self.oasis
@@ -245,6 +253,16 @@ class TestWebPage(unittest.TestCase):
         page.text()
         result = text.find("PJM")
         self.assertFalse(result == -1)
+
+    def test_get_forms(self):
+        url = "https://wikipedia.org"
+        page = WebPage(url)
+        forms = page.get_forms(execute_js=False)
+        # iteratte over forms
+        for i, form in enumerate(forms, start=1):
+            form_details = page.get_form_details(form)
+            print("=" * 50, f"form #{i}", "=" * 50)
+            print(form_details)
 
 
 class TestDeepLinkCheckHTTP(unittest.TestCase):
