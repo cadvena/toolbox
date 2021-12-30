@@ -94,8 +94,7 @@ except ImportError:
 from typing import Union
 from collections.abc import Iterable
 from datetime import datetime as dtdt
-from toolbox.file_util import ez_ftp
-from toolbox import appdirs, tb_cfg
+from toolbox import appdirs, tb_cfg, ez_ftp
 from toolbox import temp_file
 from toolbox.swiss_army import is_valid_url
 
