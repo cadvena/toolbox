@@ -1,14 +1,14 @@
-import toolbox, importlib, pathlib
-from toolbox.file_util import ez_ftp
+import toolbox, pathlib
+from toolbox import ez_ftp
 
 # module
 # ##############################################################################
 # print("module's package:", toolbox.__loader__.name)
 print("module's name (i.e, package.module_name):", ez_ftp.__loader__.name)
 print("module's short name:", ez_ftp.__loader__.name.split('.')[-1])
-print("module's name:", toolbox.file_util.ez_ftp.__loader__.name)
-print("module's short name:", toolbox.file_util.ez_ftp.__loader__.name.split('.')[-1])
-print("module's package:", toolbox.file_util.ez_ftp.__loader__.name.split('.')[0])
+print("module's name:", toolbox.ez_ftp.__loader__.name)
+print("module's short name:", toolbox.ez_ftp.__loader__.name.split('.')[-1])
+print("module's package:", toolbox.ez_ftp.__loader__.name.split('.')[0])
 
 def this_module_name(short_name: bool = False) -> str:
     """
